@@ -11,7 +11,8 @@ Sample dataset contain 23 questions as variables and around 2751 rows of data. E
 | 5  | Strongly Disagree  |
 
 # Questions
-^ Variable  ^ Position  ^ Label  ^
+| Variable  |Position  | Label |
+| ----------- | ----------- | ----------- |
 | stat_cry  | 1  | Statiscs makes me cry  |
 | afraid_spss  | 2  | My friends will think I'm stupid for not being able to cope with SPSS  |
 | sd_excite  | 3  | Standard deviations excite me  |
