@@ -1,8 +1,9 @@
 # Statistics
 Sample dataset contain 23 questions as variables and around 2751 rows of data. Each question is answered in scale of 1 to 5.
 
-#Rating Scale
-^ Rating  ^ Definition 
+# Rating Scale
+| Rating  | Definition |
+| ----------- | ----------- |
 | 1  | Strongly Agree  |
 | 2  | Agree  |
 | 3  | Niether  |
