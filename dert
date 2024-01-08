@@ -1,0 +1,95 @@
+using System;
+using System.IO;
+using System.Text.RegularExpressions;
+using Microsoft.Office.Interop.Excel;
+
+public class ReplaceAllTags
+{
+    public static void Main(string[] args)
+    {
+        // Replace all occurrences of ##name##, ##url##, and ##ReportDate## with today's date in the specified Excel file
+        string excelFilePath = @"C:\path\to\ExcelFile.xlsx";
+
+        if (!File.Exists(excelFilePath))
+        {
+            Console.WriteLine("Error: Invalid Excel file path");
+            return;
+        }
+
+        string todaysDate = DateTime.Today.ToString("yyyy-MM-dd");
+
+        using (Excel.Application excel = new Excel.Application())
+        {
+            excel.Visible = false; // Set to false to run the program silently
+
+            // Open the Excel file
+            excel.Workbooks.Open(excelFilePath);
+            Excel.Workbook workbook = excel.ActiveWorkbook;
+
+            // Get all worksheets in the workbook
+            Excel.Worksheet[] worksheets = workbook.Worksheets;
+
+            // Replace ##name##, ##url##, and ##ReportDate## with todaysDate in each worksheet
+            for (int i = 1; i <= worksheets.Count; i++)
+            {
+                Excel.Worksheet worksheet = workbook.Worksheets[i];
+
+                // Create a regular expression pattern to match all three tags
+                string regexPattern = @"##(name|url|ReportDate)##";
+                Regex regex = new Regex(regexPattern);
+
+                // Replace all occurrences of the pattern with today's date
+                worksheet.Cells.Replace(regex, todaysDate, RegexOptions.IgnoreCase);
+            }
+
+            // Save the workbook
+            workbook.Save();
+        }
+    }
+}
+
+using System;
+using System.IO;
+using System.Text.RegularExpressions;
+using Microsoft.Office.Interop.Excel;
+
+public class ReplaceReportDate
+{
+    public static void Main(string[] args)
+    {
+        // Replace all occurrences of ##ReportDate## with today's date in the specified Excel file
+        string excelFilePath = @"C:\path\to\ExcelFile.xlsx";
+        string todaysDate = DateTime.Today.ToString("yyyy-MM-dd");
+
+        using (Excel.Application excel = new Excel.Application())
+        {
+            excel.Visible = false; // Set to false to run the program silently
+
+            // Open the Excel file
+            excel.Workbooks.Open(excelFilePath);
+            Excel.Workbook workbook = excel.ActiveWorkbook;
+
+            // Get all worksheets in the workbook
+            Excel.Worksheet[] worksheets = workbook.Worksheets;
+
+            // Replace ##ReportDate## with today's date in each worksheet
+            for (int i = 1; i <= worksheets.Count; i++)
+            {
+                Excel.Worksheet worksheet = workbook.Worksheets[i];
+
+                // Create a regular expression pattern to match ##ReportDate##
+                string regexPattern = @"##ReportDate##";
+                Regex regex = new Regex(regexPattern);
+
+                // Replace all occurrences of ##ReportDate## with today's date
+                worksheet.Cells.Replace(regex, todaysDate, RegexOptions.IgnoreCase);
+            }
+
+            // Save the workbook
+            workbook.Save();
+        }
+    }
+}
+
+
+
