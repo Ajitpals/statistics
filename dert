@@ -91,5 +91,46 @@ public class ReplaceReportDate
     }
 }
 
+using System;
+using Excel = Microsoft.Office.Interop.Excel;
 
+class Program
+{
+    static void Main()
+    {
+        // Replace "YourFilePath" with the actual path to your Excel file
+        string filePath = "YourFilePath.xlsx";
+
+        // Load Excel application
+        Excel.Application excelApp = new Excel.Application();
+        excelApp.Visible = true; // Set to true if you want to see Excel in action
+
+        // Open the workbook
+        Excel.Workbook workbook = excelApp.Workbooks.Open(filePath);
+
+        // Iterate through all worksheets
+        foreach (Excel.Worksheet worksheet in workbook.Sheets)
+        {
+            // Process each cell in the worksheet
+            foreach (Excel.Range cell in worksheet.UsedRange)
+            {
+                // Check if the cell contains the identifier ##ID##
+                if (cell.Value != null && cell.Value.ToString().Contains("##ID##"))
+                {
+                    // Update the identifier to 1001
+                    cell.Value = cell.Value.ToString().Replace("##ID##", "1001");
+                }
+            }
+        }
+
+        // Save the modified workbook as a separate file
+        string newFilePath = "ModifiedFile.xlsx";
+        workbook.SaveAs(newFilePath);
+
+        // Close and release resources
+        workbook.Close();
+        excelApp.Quit();
+        System.Runtime.InteropServices.Marshal.ReleaseComObject(excelApp);
+    }
+}
 
