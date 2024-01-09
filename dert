@@ -134,3 +134,65 @@ class Program
     }
 }
 
+using System;
+using Excel = Microsoft.Office.Interop.Excel;
+
+class Program
+{
+    static void Main()
+    {
+        Excel.Application excelApp = null;
+        Excel.Workbook workbook = null;
+
+        try
+        {
+            // Replace "YourFilePath" with the actual path to your Excel file
+            string filePath = "YourFilePath.xlsx";
+
+            // Load Excel application
+            excelApp = new Excel.Application();
+            excelApp.Visible = true; // Set to true if you want to see Excel in action
+
+            // Open the workbook
+            workbook = excelApp.Workbooks.Open(filePath);
+
+            // Iterate through all worksheets
+            foreach (Excel.Worksheet worksheet in workbook.Sheets)
+            {
+                // Process each cell in the worksheet
+                foreach (Excel.Range cell in worksheet.UsedRange)
+                {
+                    // Check if the cell contains the identifier ##ID##
+                    if (cell.Value != null && cell.Value.ToString().Contains("##ID##"))
+                    {
+                        // Update the identifier to 1001
+                        cell.Value = cell.Value.ToString().Replace("##ID##", "1001");
+                    }
+                }
+            }
+
+            // Save the modified workbook as a separate file
+            string newFilePath = "ModifiedFile.xlsx";
+            workbook.SaveAs(newFilePath);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"An error occurred: {ex.Message}");
+        }
+        finally
+        {
+            // Release resources in the correct order
+            if (workbook != null)
+            {
+                workbook.Close();
+                System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook);
+            }
+
+            if (excelApp != null)
+            {
+                excelApp.Quit();
+                System.Runtime.InteropServices.Marshal.ReleaseComObject(excelApp);
+            }
+        }
+    }
+}
