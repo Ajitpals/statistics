@@ -196,3 +196,78 @@ class Program
         }
     }
 }
+using System;
+using Excel = Microsoft.Office.Interop.Excel;
+
+class Program
+{
+    static void Main()
+    {
+        Excel.Application excelApp = null;
+        Excel.Workbook workbook = null;
+
+        try
+        {
+            // Replace "YourFilePath" with the actual path to your Excel file
+            string filePath = "YourFilePath.xlsx";
+
+            // Load Excel application
+            excelApp = new Excel.Application();
+            excelApp.Visible = true; // Set to true if you want to see Excel in action
+
+            // Open the workbook
+            workbook = excelApp.Workbooks.Open(filePath);
+
+            // Specify the starting row
+            int startRow = 5;
+
+            // Iterate through all worksheets
+            foreach (Excel.Worksheet worksheet in workbook.Sheets)
+            {
+                // Process each row starting from startRow
+                for (int row = startRow; row <= worksheet.UsedRange.Rows.Count; row++)
+                {
+                    // Process each cell in the specified range (5B to 5J)
+                    for (char column = 'B'; column <= 'J'; column++)
+                    {
+                        string cellAddress = $"{column}{row}";
+                        Excel.Range cell = worksheet.Range[cellAddress];
+
+                        // Check if the cell is not empty
+                        if (cell.Value != null)
+                        {
+                            // Update the content as needed
+                            // For example, updating the identifier to 1001
+                            cell.Value = cell.Value.ToString().Replace("##ID##", "1001");
+                        }
+                    }
+                }
+            }
+
+            // Save the modified workbook as a separate file
+            string newFilePath = "ModifiedFile.xlsx";
+            workbook.SaveAs(newFilePath);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"An error occurred: {ex.Message}");
+        }
+        finally
+        {
+            // Release resources in the correct order
+            if (workbook != null)
+            {
+                workbook.Close();
+                System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook);
+            }
+
+            if (excelApp != null)
+            {
+                excelApp.Quit();
+                System.Runtime.InteropServices.Marshal.ReleaseComObject(excelApp);
+            }
+        }
+    }
+}
+
+
