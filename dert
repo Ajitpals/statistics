@@ -1,346 +1,41 @@
-using System;
-using System.IO;
-using System.Text.RegularExpressions;
-using Microsoft.Office.Interop.Excel;
+import requests
+import json
 
-public class ReplaceAllTags
-{
-    public static void Main(string[] args)
-    {
-        // Replace all occurrences of ##name##, ##url##, and ##ReportDate## with today's date in the specified Excel file
-        string excelFilePath = @"C:\path\to\ExcelFile.xlsx";
+class AzureDevOpsConnector:
+    def __init__(self, org_url, pat):
+        self.org_url = org_url
+        self.pat = pat
 
-        if (!File.Exists(excelFilePath))
-        {
-            Console.WriteLine("Error: Invalid Excel file path");
-            return;
+    def execute_wiql_query(self, query):
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Basic " + self.pat
         }
 
-        string todaysDate = DateTime.Today.ToString("yyyy-MM-dd");
-
-        using (Excel.Application excel = new Excel.Application())
-        {
-            excel.Visible = false; // Set to false to run the program silently
-
-            // Open the Excel file
-            excel.Workbooks.Open(excelFilePath);
-            Excel.Workbook workbook = excel.ActiveWorkbook;
-
-            // Get all worksheets in the workbook
-            Excel.Worksheet[] worksheets = workbook.Worksheets;
-
-            // Replace ##name##, ##url##, and ##ReportDate## with todaysDate in each worksheet
-            for (int i = 1; i <= worksheets.Count; i++)
-            {
-                Excel.Worksheet worksheet = workbook.Worksheets[i];
-
-                // Create a regular expression pattern to match all three tags
-                string regexPattern = @"##(name|url|ReportDate)##";
-                Regex regex = new Regex(regexPattern);
-
-                // Replace all occurrences of the pattern with today's date
-                worksheet.Cells.Replace(regex, todaysDate, RegexOptions.IgnoreCase);
-            }
-
-            // Save the workbook
-            workbook.Save();
-        }
-    }
-}
-
-using System;
-using System.IO;
-using System.Text.RegularExpressions;
-using Microsoft.Office.Interop.Excel;
-
-public class ReplaceReportDate
-{
-    public static void Main(string[] args)
-    {
-        // Replace all occurrences of ##ReportDate## with today's date in the specified Excel file
-        string excelFilePath = @"C:\path\to\ExcelFile.xlsx";
-        string todaysDate = DateTime.Today.ToString("yyyy-MM-dd");
-
-        using (Excel.Application excel = new Excel.Application())
-        {
-            excel.Visible = false; // Set to false to run the program silently
-
-            // Open the Excel file
-            excel.Workbooks.Open(excelFilePath);
-            Excel.Workbook workbook = excel.ActiveWorkbook;
-
-            // Get all worksheets in the workbook
-            Excel.Worksheet[] worksheets = workbook.Worksheets;
-
-            // Replace ##ReportDate## with today's date in each worksheet
-            for (int i = 1; i <= worksheets.Count; i++)
-            {
-                Excel.Worksheet worksheet = workbook.Worksheets[i];
-
-                // Create a regular expression pattern to match ##ReportDate##
-                string regexPattern = @"##ReportDate##";
-                Regex regex = new Regex(regexPattern);
-
-                // Replace all occurrences of ##ReportDate## with today's date
-                worksheet.Cells.Replace(regex, todaysDate, RegexOptions.IgnoreCase);
-            }
-
-            // Save the workbook
-            workbook.Save();
-        }
-    }
-}
-
-using System;
-using Excel = Microsoft.Office.Interop.Excel;
-
-class Program
-{
-    static void Main()
-    {
-        // Replace "YourFilePath" with the actual path to your Excel file
-        string filePath = "YourFilePath.xlsx";
-
-        // Load Excel application
-        Excel.Application excelApp = new Excel.Application();
-        excelApp.Visible = true; // Set to true if you want to see Excel in action
-
-        // Open the workbook
-        Excel.Workbook workbook = excelApp.Workbooks.Open(filePath);
-
-        // Iterate through all worksheets
-        foreach (Excel.Worksheet worksheet in workbook.Sheets)
-        {
-            // Process each cell in the worksheet
-            foreach (Excel.Range cell in worksheet.UsedRange)
-            {
-                // Check if the cell contains the identifier ##ID##
-                if (cell.Value != null && cell.Value.ToString().Contains("##ID##"))
-                {
-                    // Update the identifier to 1001
-                    cell.Value = cell.Value.ToString().Replace("##ID##", "1001");
-                }
-            }
+        data = {
+            "query": query
         }
 
-        // Save the modified workbook as a separate file
-        string newFilePath = "ModifiedFile.xlsx";
-        workbook.SaveAs(newFilePath);
+        response = requests.post(
+            self.org_url + "/_apis/wit/wiql",
+            headers=headers,
+            json=data
+        )
 
-        // Close and release resources
-        workbook.Close();
-        excelApp.Quit();
-        System.Runtime.InteropServices.Marshal.ReleaseComObject(excelApp);
-    }
-}
+        if response.status_code == 200:
+            results = json.loads(response.text)
+            work_items = results["work_items"]
 
-using System;
-using Excel = Microsoft.Office.Interop.Excel;
+            return work_items
+        else:
+            raise ValueError(
+                "Failed to execute WIQL query: {} ({})".format(
+                    response.status_code, response.text
+                )
+            )
 
-class Program
-{
-    static void Main()
-    {
-        Excel.Application excelApp = null;
-        Excel.Workbook workbook = null;
+connector = AzureDevOpsConnector("https://dev.azure.com/myorg", "mypat")
+work_items = connector.execute_wiql_query("SELECT [System.Id], [System.Title], [System.WorkItemType] FROM workitems")
 
-        try
-        {
-            // Replace "YourFilePath" with the actual path to your Excel file
-            string filePath = "YourFilePath.xlsx";
-
-            // Load Excel application
-            excelApp = new Excel.Application();
-            excelApp.Visible = true; // Set to true if you want to see Excel in action
-
-            // Open the workbook
-            workbook = excelApp.Workbooks.Open(filePath);
-
-            // Iterate through all worksheets
-            foreach (Excel.Worksheet worksheet in workbook.Sheets)
-            {
-                // Process each cell in the worksheet
-                foreach (Excel.Range cell in worksheet.UsedRange)
-                {
-                    // Check if the cell contains the identifier ##ID##
-                    if (cell.Value != null && cell.Value.ToString().Contains("##ID##"))
-                    {
-                        // Update the identifier to 1001
-                        cell.Value = cell.Value.ToString().Replace("##ID##", "1001");
-                    }
-                }
-            }
-
-            // Save the modified workbook as a separate file
-            string newFilePath = "ModifiedFile.xlsx";
-            workbook.SaveAs(newFilePath);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"An error occurred: {ex.Message}");
-        }
-        finally
-        {
-            // Release resources in the correct order
-            if (workbook != null)
-            {
-                workbook.Close();
-                System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook);
-            }
-
-            if (excelApp != null)
-            {
-                excelApp.Quit();
-                System.Runtime.InteropServices.Marshal.ReleaseComObject(excelApp);
-            }
-        }
-    }
-}
-using System;
-using Excel = Microsoft.Office.Interop.Excel;
-
-class Program
-{
-    static void Main()
-    {
-        Excel.Application excelApp = null;
-        Excel.Workbook workbook = null;
-
-        try
-        {
-            // Replace "YourFilePath" with the actual path to your Excel file
-            string filePath = "YourFilePath.xlsx";
-
-            // Load Excel application
-            excelApp = new Excel.Application();
-            excelApp.Visible = true; // Set to true if you want to see Excel in action
-
-            // Open the workbook
-            workbook = excelApp.Workbooks.Open(filePath);
-
-            // Specify the starting row
-            int startRow = 5;
-
-            // Iterate through all worksheets
-            foreach (Excel.Worksheet worksheet in workbook.Sheets)
-            {
-                // Process each row starting from startRow
-                for (int row = startRow; row <= worksheet.UsedRange.Rows.Count; row++)
-                {
-                    // Process each cell in the specified range (5B to 5J)
-                    for (char column = 'B'; column <= 'J'; column++)
-                    {
-                        string cellAddress = $"{column}{row}";
-                        Excel.Range cell = worksheet.Range[cellAddress];
-
-                        // Check if the cell is not empty
-                        if (cell.Value != null)
-                        {
-                            // Update the content as needed
-                            // For example, updating the identifier to 1001
-                            cell.Value = cell.Value.ToString().Replace("##ID##", "1001");
-                        }
-                    }
-                }
-            }
-
-            // Save the modified workbook as a separate file
-            string newFilePath = "ModifiedFile.xlsx";
-            workbook.SaveAs(newFilePath);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"An error occurred: {ex.Message}");
-        }
-        finally
-        {
-            // Release resources in the correct order
-            if (workbook != null)
-            {
-                workbook.Close();
-                System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook);
-            }
-
-            if (excelApp != null)
-            {
-                excelApp.Quit();
-                System.Runtime.InteropServices.Marshal.ReleaseComObject(excelApp);
-            }
-        }
-    }
-}
-
-using System;
-using Excel = Microsoft.Office.Interop.Excel;
-
-class Program
-{
-    static void Main()
-    {
-        Excel.Application excelApp = null;
-        Excel.Workbook workbook = null;
-
-        try
-        {
-            // Replace "YourFilePath" with the actual path to your Excel file
-            string filePath = "YourFilePath.xlsx";
-
-            // Load Excel application
-            excelApp = new Excel.Application();
-            excelApp.Visible = true; // Set to true if you want to see Excel in action
-
-            // Open the workbook
-            workbook = excelApp.Workbooks.Open(filePath);
-
-            // Specify the starting row
-            int startRow = 5;
-
-            // Iterate through all worksheets
-            foreach (Excel.Worksheet worksheet in workbook.Sheets)
-            {
-                // Process each row starting from startRow
-                for (int row = startRow; row <= worksheet.UsedRange.Rows.Count; row++)
-                {
-                    // Process each cell in the specified range (5B to 5J)
-                    for (char column = 'B'; column <= 'J'; column++)
-                    {
-                        string cellAddress = $"{column}{row}";
-                        Excel.Range cell = worksheet.Range[cellAddress];
-
-                        // Check if the cell is not empty
-                        if (cell.Value != null)
-                        {
-                            // Update the content as needed
-                            // For example, updating the identifier to 1001
-                            cell.Value = cell.Value.ToString().Replace("##ID##", "1001");
-                        }
-                    }
-                }
-            }
-
-            // Save the modified workbook as a separate file
-            string newFilePath = "ModifiedFile.xlsx";
-            workbook.SaveAs(newFilePath);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"An error occurred: {ex.Message}");
-        }
-        finally
-        {
-            // Release resources in the correct order
-            if (workbook != null)
-            {
-                workbook.Close();
-                System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook);
-            }
-
-            if (excelApp != null)
-            {
-                excelApp.Quit();
-                System.Runtime.InteropServices.Marshal.ReleaseComObject(excelApp);
-            }
-        }
-    }
-}
-
+for work_item in work_items:
+    print(work_item["id"], work_item["title"], work_item["work_item_type"])
