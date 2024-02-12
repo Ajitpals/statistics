@@ -37,5 +37,8 @@ class AzureDevOpsConnector:
 connector = AzureDevOpsConnector("https://dev.azure.com/myorg", "mypat")
 work_items = connector.execute_wiql_query("SELECT [System.Id], [System.Title], [System.WorkItemType] FROM workitems")
 
+https://<your_instance_url>/sys_change_request.do?JSONv2&sysparm_query=&sysparm_fields=<selected_fields>
+
+
 for work_item in work_items:
     print(work_item["id"], work_item["title"], work_item["work_item_type"])
