@@ -39,6 +39,9 @@ work_items = connector.execute_wiql_query("SELECT [System.Id], [System.Title], [
 
 https://<your_instance_url>/sys_change_request.do?JSONv2&sysparm_query=&sysparm_fields=<selected_fields>
 
+https://<your_instance_url>/sys_change_request.do?JSONv2&sysparm_query=&sysparm_fields=<selected_fields>&sysparm_limit=100
+
+
 
 for work_item in work_items:
     print(work_item["id"], work_item["title"], work_item["work_item_type"])
