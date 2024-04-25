@@ -1,3 +1,20 @@
+
+let
+    Source = (continuationToken as nullable text, organization as text, project as text) as any =>
+    let
+        Url = "https://dev.azure.com/" & organization & "/" & project & "/_apis/build/definitions?api-version=7.1-preview.7" & if continuationToken <> null then "&continuationToken=" & continuationToken else "",
+        WebCall = Json.Document(Web.Contents(Url)),
+        NextContinuationToken = try WebCall[continuationToken] otherwise null,
+        Data = WebCall[value],
+        Output = if NextContinuationToken <> null then Data & Source(NextContinuationToken, organization, project) else Data
+    in
+        Output,
+    FinalData = Source(null, "yourOrganization", "yourProject")
+in
+    FinalData
+
+========≠=======≠≈===={({===
+
 import requests
 import json
 
