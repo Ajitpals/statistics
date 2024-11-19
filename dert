@@ -1,4 +1,38 @@
 
+Sub ClearAndRefreshPivotTablesWithoutOverlap()
+    Dim ws As Worksheet
+    Dim pt As PivotTable
+    Dim pc As PivotCache
+    Dim wb As Workbook
+    Dim lastRow As Long, lastCol As Long
+
+    ' Set the workbook
+    Set wb = ThisWorkbook
+
+    ' Loop through all worksheets
+    For Each ws In wb.Worksheets
+        ' Loop through each PivotTable in the worksheet
+        For Each pt In ws.PivotTables
+            ' Identify the last cell of the Pivot Table
+            lastRow = pt.TableRange2.Row + pt.TableRange2.Rows.Count
+            lastCol = pt.TableRange2.Column + pt.TableRange2.Columns.Count
+
+            ' Clear the cache by recreating the PivotTable
+            Set pc = wb.PivotCaches.Create(SourceType:=pt.SourceType, SourceData:=pt.SourceData)
+            pt.ChangePivotCache pc
+
+            ' Move the Pivot Table if needed to avoid overlaps
+            If Not IsEmpty(ws.Cells(lastRow, lastCol)) Then
+                pt.TableRange2.Clear ' Optional: Clears old data
+                pt.TableRange2.Offset(5, 0).Select
+            End If
+        Next pt
+    Next ws
+
+`````. Elabor .** Notes Clearing-Auto
+
+
+
 let
     Source = (continuationToken as nullable text, organization as text, project as text) as any =>
     let
