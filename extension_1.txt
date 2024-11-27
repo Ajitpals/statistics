@@ -1,0 +1,139 @@
+{
+  "manifestVersion": 1,
+  "id": "keyvaluepair-extension",
+  "version": "1.0.0",
+  "publisher": "your-publisher-id",
+  "name": "KeyValuePair Hub",
+  "description": "A hub to manage key-value pairs",
+  "icons": {
+    "default": "images/icon.png"
+  },
+  "targets": [
+    {
+      "id": "Microsoft.VisualStudio.Services"
+    }
+  ],
+  "contributions": [
+    {
+      "id": "keyvaluepair-hub",
+      "type": "ms.vss-web.hub",
+      "targets": ["ms.vss-admin-web.organization-admin-hub-group"],
+      "properties": {
+        "name": "KeyValuePair",
+        "uri": "dist/index.html",
+        "order": 100
+      }
+    }
+  ]
+}
+
+
+APP.TSX
+import React, { useEffect, useState } from "react";
+import * as SDK from "azure-devops-extension-sdk";
+import { PrimaryButton, TextField, DetailsList, IColumn } from "@fluentui/react";
+import "./App.css";
+
+interface KeyValue {
+  key: string;
+}
+
+const App: React.FC = () => {
+  const [key, setKey] = useState<string>("");
+  const [keys, setKeys] = useState<KeyValue[]>([]);
+
+  useEffect(() => {
+    SDK.init();
+    loadKeys();
+  }, []);
+
+  const loadKeys = async () => {
+    const storage = await SDK.getService<SDK.ExtensionDataService>(
+      SDK.CommonServiceIds.ExtensionDataService
+    );
+    const storageManager = await storage.getExtensionStorageManager();
+    const savedKeys = (await storageManager.getValue<KeyValue[]>("keyList")) || [];
+    setKeys(savedKeys);
+  };
+
+  const handleAddKey = async () => {
+    if (!key) return;
+
+    const existing = keys.find((item) => item.key === key);
+    if (existing) {
+      alert("Key already exists!");
+      return;
+    }
+
+    const newKeys = [...keys, { key }];
+    setKeys(newKeys);
+    await saveKeys(newKeys);
+    setKey("");
+  };
+
+  const handleDeleteKey = async (keyToDelete: string) => {
+    const newKeys = keys.filter((item) => item.key !== keyToDelete);
+    setKeys(newKeys);
+    await saveKeys(newKeys);
+  };
+
+  const saveKeys = async (keyList: KeyValue[]) => {
+    const storage = await SDK.getService<SDK.ExtensionDataService>(
+      SDK.CommonServiceIds.ExtensionDataService
+    );
+    const storageManager = await storage.getExtensionStorageManager();
+    await storageManager.setValue("keyList", keyList);
+  };
+
+  const columns: IColumn[] = [
+    { key: "column1", name: "Key", fieldName: "key", minWidth: 100, maxWidth: 200, isResizable: true },
+    {
+      key: "column2",
+      name: "Actions",
+      fieldName: "actions",
+      minWidth: 100,
+      maxWidth: 200,
+      isResizable: false,
+      onRender: (item: KeyValue) => (
+        <PrimaryButton text="Delete" onClick={() => handleDeleteKey(item.key)} />
+      ),
+    },
+  ];
+
+  return (
+    <div className="app-container">
+      <h1>KeyValuePair Hub</h1>
+      <div className="form-container">
+        <TextField
+          placeholder="Enter Key"
+          value={key}
+          onChange={(e, value) => setKey(value || "")}
+        />
+        <PrimaryButton text="Add" onClick={handleAddKey} />
+      </div>
+      <DetailsList items={keys} columns={columns} />
+    </div>
+  );
+};
+
+export default App;
+
+
+Index.tsx
+import React from "react";
+import ReactDOM from "react-dom";
+import App from "./App";
+import "./index.css";
+
+ReactDOM.render(<App />, document.getElementById("root"));
+
+Style.Css
+.app-container {
+  padding: 20px;
+}
+
+.form-container {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
