@@ -1,3 +1,140 @@
+// src/GlobalProjects.tsx
+import "./GlobalProjects.scss";
+import * as React from "react";
+import * as ReactDOM from "react-dom";
+import * as SDK from "azure-devops-extension-sdk";
+import { Button } from "azure-devops-ui/Button";
+import { TextField } from "azure-devops-ui/TextField";
+import { List, ListItem } from "azure-devops-ui/List";
+import { Icon } from "azure-devops-ui/Icon";
+import { 
+    CommonServiceIds, 
+    IExtensionDataService,
+    IExtensionDataManager 
+} from "azure-devops-extension-api";
+
+interface IProjectState {
+    projects: string[];
+    newProject: string;
+    error: string;
+}
+
+class GlobalProjects extends React.Component<{}, IProjectState> {
+    private dataManager: IExtensionDataManager | undefined;
+
+    constructor(props: {}) {
+        super(props);
+        this.state = {
+            projects: [],
+            newProject: "",
+            error: ""
+        };
+    }
+
+    public async componentDidMount() {
+        await SDK.init();
+        await this.initializeDataManager();
+        await this.loadProjects();
+    }
+
+    private async initializeDataManager() {
+        const dataService = await SDK.getService<IExtensionDataService>(CommonServiceIds.ExtensionDataService);
+        this.dataManager = await dataService.getExtensionDataManager(
+            SDK.getExtensionContext().id,
+            await SDK.getAccessToken()
+        );
+    }
+
+    private async loadProjects() {
+        try {
+            const document = await this.dataManager?.getDocument("global-projects", "projects");
+            if (document && document.projects) {
+                this.setState({ projects: document.projects });
+            }
+        } catch {
+            await this.dataManager?.createDocument("global-projects", { projects: [] });
+            this.setState({ projects: [] });
+        }
+    }
+
+    private async saveProjects(projects: string[]) {
+        await this.dataManager?.setDocument("global-projects", "projects", { projects });
+        this.setState({ projects });
+    }
+
+    private validateProjectName(name: string): boolean {
+        // Only validate that the input is not empty
+        if (!name || name.trim().length === 0) {
+            this.setState({ error: "Project name cannot be empty" });
+            return false;
+        }
+        return true;
+    }
+
+    private async addProject() {
+        const newProject = this.state.newProject.trim();
+        if (this.validateProjectName(newProject)) {
+            const updatedProjects = [...this.state.projects, newProject];
+            await this.saveProjects(updatedProjects);
+            this.setState({ newProject: "", error: "" });
+        }
+    }
+
+    private async deleteProject(project: string) {
+        const updatedProjects = this.state.projects.filter(p => p !== project);
+        await this.saveProjects(updatedProjects);
+    }
+
+    public render(): JSX.Element {
+        return (
+            <div className="page-content">
+                <h1 className="heading">Manage Project List</h1>
+                
+                <div className="form-row">
+                    <TextField
+                        value={this.state.newProject}
+                        onChange={(e, newValue) => this.setState({ 
+                            newProject: newValue, 
+                            error: "" 
+                        })}
+                        placeholder="Enter project name"
+                        width={300}
+                        error={this.state.error}
+                    />
+                    <Button
+                        className="add-button"
+                        primary={true}
+                        text="Add Project"
+                        onClick={() => this.addProject()}
+                    />
+                </div>
+
+                <List className="project-list">
+                    {this.state.projects.map((project, index) => (
+                        <ListItem
+                            key={index}
+                            className="project-item"
+                            index={index}
+                        >
+                            <div className="flex-row flex-center">
+                                <span className="project-name">{project}</span>
+                                <Button
+                                    className="delete-button"
+                                    danger={true}
+                                    onClick={() => this.deleteProject(project)}
+                                    iconProps={{ iconName: "Delete" }}
+                                />
+                            </div>
+                        </ListItem>
+                    ))}
+                </List>
+            </div>
+        );
+    }
+}
+
+showRootComponent(<GlobalProjects />);
+
 // vss-extension.json
 {
     "manifestVersion": 1,
