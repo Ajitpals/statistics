@@ -1,0 +1,292 @@
+// vss-extension.json
+{
+    "manifestVersion": 1,
+    "id": "global-projects-manager",
+    "publisher": "your-publisher",
+    "version": "1.0.0",
+    "name": "Global Projects Manager",
+    "description": "Manage global project list across organization",
+    "public": false,
+    "categories": ["Plan and track"],
+    "targets": [
+        {
+            "id": "Microsoft.VisualStudio.Services"
+        }
+    ],
+    "contributions": [
+        {
+            "id": "global-projects-hub",
+            "type": "ms.vss-web.hub",
+            "description": "Manage global projects across organization",
+            "targets": [
+                "ms.vss-web.collection-admin-hub-group"
+            ],
+            "properties": {
+                "name": "Global Projects",
+                "order": 1,
+                "uri": "dist/GlobalProjects.html"
+            }
+        }
+    ],
+    "files": [
+        {
+            "path": "dist",
+            "addressable": true
+        }
+    ]
+}
+
+// src/GlobalProjects.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Global Projects</title>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/javascript" src="GlobalProjects.js"></script>
+</body>
+</html>
+
+// src/GlobalProjects.tsx
+import "./GlobalProjects.scss";
+import * as React from "react";
+import * as ReactDOM from "react-dom";
+import * as SDK from "azure-devops-extension-sdk";
+import { 
+    Button,
+    ButtonGroup,
+    TextField,
+    List,
+    ListItem,
+    IListItemDetails,
+    Icon
+} from "azure-devops-ui/index";
+import { 
+    showRootComponent,
+    getClient 
+} from "./sdk/ExtensionInit";
+import { 
+    CommonServiceIds, 
+    IExtensionDataService,
+    IExtensionDataManager 
+} from "azure-devops-extension-api";
+
+interface IProjectState {
+    projects: string[];
+    newProject: string;
+    error: string;
+}
+
+class GlobalProjects extends React.Component<{}, IProjectState> {
+    private dataManager: IExtensionDataManager | undefined;
+
+    constructor(props: {}) {
+        super(props);
+        this.state = {
+            projects: [],
+            newProject: "",
+            error: ""
+        };
+    }
+
+    public async componentDidMount() {
+        await SDK.init();
+        await this.initializeDataManager();
+        await this.loadProjects();
+    }
+
+    private async initializeDataManager() {
+        const dataService = await SDK.getService<IExtensionDataService>(CommonServiceIds.ExtensionDataService);
+        this.dataManager = await dataService.getExtensionDataManager(
+            SDK.getExtensionContext().id,
+            await SDK.getAccessToken()
+        );
+    }
+
+    private async loadProjects() {
+        try {
+            const document = await this.dataManager?.getDocument("global-projects", "projects");
+            if (document && document.projects) {
+                this.setState({ projects: document.projects });
+            }
+        } catch {
+            await this.dataManager?.createDocument("global-projects", { projects: [] });
+            this.setState({ projects: [] });
+        }
+    }
+
+    private async saveProjects(projects: string[]) {
+        await this.dataManager?.setDocument("global-projects", "projects", { projects });
+        this.setState({ projects });
+    }
+
+    private validateProjectName(name: string): boolean {
+        // Only validate that the input is not empty
+        if (!name || name.trim().length === 0) {
+            this.setState({ error: "Project name cannot be empty" });
+            return false;
+        }
+        return true;
+    }
+
+    private async addProject() {
+        const newProject = this.state.newProject.trim();
+        if (this.validateProjectName(newProject)) {
+            const updatedProjects = [...this.state.projects, newProject];
+            await this.saveProjects(updatedProjects);
+            this.setState({ newProject: "", error: "" });
+        }
+    }
+
+    private async deleteProject(project: string) {
+        const updatedProjects = this.state.projects.filter(p => p !== project);
+        await this.saveProjects(updatedProjects);
+    }
+
+    public render(): JSX.Element {
+        return (
+            <div className="page-content">
+                <h1 className="heading">Manage Project List</h1>
+                
+                <div className="form-row">
+                    <TextField
+                        value={this.state.newProject}
+                        onChange={(e, newValue) => this.setState({ 
+                            newProject: newValue, 
+                            error: "" 
+                        })}
+                        placeholder="Enter project name"
+                        width={300}
+                        error={this.state.error}
+                    />
+                    <Button
+                        className="add-button"
+                        primary={true}
+                        text="Add Project"
+                        onClick={() => this.addProject()}
+                    />
+                </div>
+
+                <List className="project-list">
+                    {this.state.projects.map((project, index) => (
+                        <ListItem
+                            key={index}
+                            className="project-item"
+                            index={index}
+                        >
+                            <div className="flex-row flex-center">
+                                <span className="project-name">{project}</span>
+                                <Button
+                                    className="delete-button"
+                                    danger={true}
+                                    onClick={() => this.deleteProject(project)}
+                                    iconProps={{ iconName: "Delete" }}
+                                />
+                            </div>
+                        </ListItem>
+                    ))}
+                </List>
+            </div>
+        );
+    }
+}
+
+showRootComponent(<GlobalProjects />);
+
+// src/GlobalProjects.scss
+.page-content {
+    padding: 16px;
+
+    .heading {
+        margin-bottom: 24px;
+    }
+
+    .form-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .project-list {
+        .project-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+
+            .flex-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .project-name {
+                flex-grow: 1;
+            }
+
+            .delete-button {
+                margin-left: 16px;
+            }
+        }
+    }
+}
+
+// package.json
+{
+    "name": "global-projects-manager",
+    "version": "1.0.0",
+    "description": "Azure DevOps Extension for managing global projects",
+    "scripts": {
+        "build": "webpack --mode production",
+        "dev": "webpack --mode development",
+        "package": "tfx extension create --manifest-globs vss-extension.json",
+        "publish": "tfx extension publish --manifest-globs vss-extension.json"
+    },
+    "dependencies": {
+        "azure-devops-extension-api": "^1.157.0",
+        "azure-devops-extension-sdk": "^2.0.11",
+        "azure-devops-ui": "^2.167.76",
+        "react": "^16.8.6",
+        "react-dom": "^16.8.6"
+    },
+    "devDependencies": {
+        "@types/react": "^16.8.6",
+        "@types/react-dom": "^16.8.6",
+        "css-loader": "^6.7.1",
+        "sass": "^1.54.0",
+        "sass-loader": "^13.0.2",
+        "style-loader": "^3.3.1",
+        "ts-loader": "^9.3.1",
+        "typescript": "^4.7.4",
+        "webpack": "^5.74.0",
+        "webpack-cli": "^4.10.0"
+    }
+}
+
+// webpack.config.js
+const path = require("path");
+
+module.exports = {
+    entry: {
+        GlobalProjects: "./src/GlobalProjects.tsx"
+    },
+    output: {
+        filename: "[name].js",
+        path: path.resolve(__dirname, "dist")
+    },
+    resolve: {
+        extensions: [".ts", ".tsx", ".js"]
+    },
+    module: {
+        rules: [
+            {
+                test: /\.tsx?$/,
+                loader: "ts-loader"
+            },
+            {
+                test: /\.scss$/,
+                use: ["style-loader", "css-loader", "sass-loader"]
+            }
+        ]
+    }
+}
