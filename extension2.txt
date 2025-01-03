@@ -1,4 +1,4 @@
-// src/GlobalProjects.tsx
+/ src/GlobalProjects.tsx
 import "./GlobalProjects.scss";
 import * as React from "react";
 import * as ReactDOM from "react-dom";
@@ -19,8 +19,16 @@ interface IProjectState {
     error: string;
 }
 
+interface IProjectDocument {
+    id: string;
+    __etag: string;
+    data: string[];
+}
+
 class GlobalProjects extends React.Component<{}, IProjectState> {
     private dataManager: IExtensionDataManager | undefined;
+    private collectionKey = "global-projects";
+    private documentId = "projects";
 
     constructor(props: {}) {
         super(props);
@@ -47,19 +55,30 @@ class GlobalProjects extends React.Component<{}, IProjectState> {
 
     private async loadProjects() {
         try {
-            const document = await this.dataManager?.getDocument("global-projects", "projects");
-            if (document && document.projects) {
-                this.setState({ projects: document.projects });
+            const document = await this.dataManager?.getDocument(this.collectionKey, this.documentId);
+            if (document && document.data) {
+                this.setState({ projects: document.data });
             }
         } catch {
-            await this.dataManager?.createDocument("global-projects", { projects: [] });
+            // Initialize with empty array if document doesn't exist
+            await this.saveProjects([]);
             this.setState({ projects: [] });
         }
     }
 
     private async saveProjects(projects: string[]) {
-        await this.dataManager?.setDocument("global-projects", "projects", { projects });
-        this.setState({ projects });
+        try {
+            await this.dataManager?.setDocument(
+                this.collectionKey,
+                {
+                    id: this.documentId,
+                    data: projects
+                }
+            );
+            this.setState({ projects });
+        } catch (error) {
+            this.setState({ error: "Failed to save projects" });
+        }
     }
 
     private validateProjectName(name: string): boolean {
@@ -134,6 +153,7 @@ class GlobalProjects extends React.Component<{}, IProjectState> {
 }
 
 showRootComponent(<GlobalProjects />);
+
 
 // vss-extension.json
 {
