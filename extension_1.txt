@@ -1,8 +1,7 @@
 using System;
-using System.IO;
 using System.Linq;
-using ClosedXML.Excel;
 using System.Text.RegularExpressions;
+using ClosedXML.Excel;
 
 class Program
 {
@@ -19,47 +18,66 @@ class Program
             var range = sheet.RangeUsed();
             if (range == null) continue;
 
-            // Identify all 4-digit cells
-            var fourDigitCells = range.CellsUsed()
+            // Get all 4-digit code cells
+            var codeCells = range.CellsUsed()
                 .Where(c => Regex.IsMatch(c.GetString(), @"^\d{4}$"))
                 .ToList();
 
-            if (!fourDigitCells.Any()) continue;
+            if (!codeCells.Any()) continue;
 
-            int minRow = fourDigitCells.Min(c => c.Address.RowNumber);
-            int maxRow = fourDigitCells.Max(c => c.Address.RowNumber);
-            int minCol = fourDigitCells.Min(c => c.Address.ColumnNumber);
-            int maxCol = fourDigitCells.Max(c => c.Address.ColumnNumber);
+            int minRow = codeCells.Min(c => c.Address.RowNumber);
+            int maxRow = codeCells.Max(c => c.Address.RowNumber);
+            int minCol = codeCells.Min(c => c.Address.ColumnNumber);
+            int maxCol = codeCells.Max(c => c.Address.ColumnNumber);
 
-            var rowCodes = sheet.Range(minRow + 1, minCol, maxRow, minCol)
+            // Get row and column codes
+            var rowCodeCells = sheet.Range(minRow + 1, minCol, maxRow, minCol)
                 .Cells()
                 .Where(c => Regex.IsMatch(c.GetString(), @"^\d{4}$"))
                 .ToList();
 
-            var colCodes = sheet.Range(minRow, minCol + 1, minRow, maxCol)
+            var colCodeCells = sheet.Range(minRow, minCol + 1, minRow, maxCol)
                 .Cells()
                 .Where(c => Regex.IsMatch(c.GetString(), @"^\d{4}$"))
                 .ToList();
 
-            foreach (var rowCell in rowCodes)
+            // Check orientation of main property: row-level or column-level
+            bool hasRowMainProps = sheet.Cell(maxRow + 1, minCol + 1).GetString().Trim() != "";
+            bool hasColMainProps = sheet.Cell(minRow + 1, maxCol + 1).GetString().Trim() != "";
+
+            // Extract main properties
+            var rowMainProps = hasRowMainProps
+                ? sheet.Range(maxRow + 1, minCol + 1, maxRow + 1, maxCol).Cells().Select(c => c.GetString()).ToList()
+                : null;
+
+            var colMainProps = hasColMainProps
+                ? sheet.Range(minRow + 1, maxCol + 1, maxRow, maxCol + 1).Cells().Select(c => c.GetString()).ToList()
+                : null;
+
+            for (int i = 0; i < rowCodeCells.Count; i++)
             {
+                var rowCell = rowCodeCells[i];
                 string rowCode = rowCell.GetString();
                 int row = rowCell.Address.RowNumber;
 
-                foreach (var colCell in colCodes)
+                for (int j = 0; j < colCodeCells.Count; j++)
                 {
+                    var colCell = colCodeCells[j];
                     string colCode = colCell.GetString();
                     int col = colCell.Address.ColumnNumber;
 
                     var dataCell = sheet.Cell(row, col);
                     string color = GetCellColor(dataCell);
+                    string value = dataCell.GetString();
 
-                    // Extract main property just outside range
-                    string mainProperty = sheet.Cell(minRow - 1, col).GetString(); // Above column
-                    if (string.IsNullOrWhiteSpace(mainProperty))
-                        mainProperty = sheet.Cell(row, minCol - 1).GetString(); // Left of row
+                    // Determine main property
+                    string mainProperty = "";
+                    if (hasColMainProps && i < colMainProps.Count)
+                        mainProperty = colMainProps[i];
+                    else if (hasRowMainProps && j < rowMainProps.Count)
+                        mainProperty = rowMainProps[j];
 
-                    Console.WriteLine($"Row: {rowCode}, Column: {colCode}, Main Property: {mainProperty}, Color: {color}");
+                    Console.WriteLine($"Row: {rowCode}, Column: {colCode}, Value: {value}, Main Property: {mainProperty}, Color: {color}");
                 }
             }
 
@@ -71,9 +89,7 @@ class Program
     {
         var color = cell.Style.Fill.BackgroundColor;
         if (color.ColorType == XLColorType.Color)
-        {
             return color.Color.ToArgb() == XLColor.White.Color.ToArgb() ? "White" : "Grey";
-        }
         return "White";
     }
 }
