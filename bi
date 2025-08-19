@@ -1,3 +1,30 @@
+ExtractedValue =
+VAR InputText = 'Table'[YourTextColumn]
+VAR INC_Pos = SEARCH("INC", InputText, 1, 0)
+VAR REQ_Pos = SEARCH("REQ", InputText, 1, 0)
+VAR WordStart =
+    SWITCH (
+        TRUE(),
+        INC_Pos > 0, INC_Pos,
+        REQ_Pos > 0, REQ_Pos,
+        0
+    )
+VAR Extracted =
+    IF (
+        WordStart > 0,
+        TRIM (
+            MID (
+                InputText,
+                WordStart,
+                FIND ( " ", InputText & " ", WordStart, 1 ) - WordStart
+            )
+        )
+    )
+RETURN Extracted
+
+
+
+
 Creating a Fixed 5-Year Feature Closure Cost Graph in Power BI
 Your Data Setup
 You have:
