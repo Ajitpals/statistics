@@ -1,60 +1,67 @@
 {
   "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-  "data": { "name": "dataset" },
-  "height": 450,
+  "description": "Gantt Chart with TargetDate and ForecastDate",
+  "data": {
+    "name": "Dataset" 
+  },
+  "transform": [
+    {
+      "calculate": "datum['Feature Start Date']", 
+      "as": "start"
+    },
+    {
+      "calculate": "datum['TargetDate']", 
+      "as": "targetEnd"
+    },
+    {
+      "calculate": "datum['Forecast Finish']", 
+      "as": "forecastEnd"
+    }
+  ],
   "layer": [
     {
-      "mark": { "type": "bar", "tooltip": true },
+      "mark": {
+        "type": "bar",
+        "tooltip": true
+      },
       "encoding": {
-        "y": { "field": "Title", "type": "nominal", "sort": "-x" },
-        "x": { "field": "Feature Start Date", "type": "temporal" },
-        "x2": { "field": "Forecast Date" },
-        "color": {
-          "field": "Delivery Status",
-          "type": "nominal",
-          "scale": {
-            "domain": ["On Track", "At Risk", "High Risk"],
-            "range": ["#2E8B57", "#FFA500", "#D62728"]
-          }
-        },
-        "size": {
-          "field": "Remaining Stories",
-          "type": "quantitative",
-          "scale": { "range": [10, 30] }
-        }
+        "x": {"field": "start", "type": "temporal"},
+        "x2": {"field": "forecastEnd"},
+        "y": {"field": "Epic Title", "type": "ordinal", "sort": "-x"},
+        "color": {"field": "Risk", "type": "nominal",
+                  "scale": {"domain":["On Track","At Risk","High Risk"],
+                            "range":["#2ECC71","#F39C12","#E74C3C"]}},
+        "tooltip": [
+          {"field": "Feature Title", "type": "nominal"},
+          {"field": "Progress %", "type": "quantitative"},
+          {"field": "TargetDate", "type": "temporal"},
+          {"field": "Forecast Finish", "type": "temporal"}
+        ]
       }
     },
     {
       "mark": {
-        "type": "text",
-        "align": "center",
-        "baseline": "middle",
-        "color": "white",
-        "fontWeight": "bold"
+        "type": "bar",
+        "tooltip": false,
+        "size": 3,
+        "color": "black"
       },
       "encoding": {
-        "y": { "field": "Title", "type": "nominal" },
-        "x": { "field": "Feature Start Date", "type": "temporal" },
-        "x2": { "field": "Forecast Date" },
-        "text": { "field": "Progress %", "format": ".0%" }
-      }
-    },
-    {
-      "mark": { "type": "rule", "color": "black", "strokeWidth": 2 },
-      "encoding": {
-        "y": { "field": "Title", "type": "nominal" },
-        "x": { "field": "TargetDate", "type": "temporal" }
+        "x": {"field": "start", "type": "temporal"},
+        "x2": {"field": "targetEnd"},
+        "y": {"field": "Epic Title", "type": "ordinal", "sort": "-x"}
       }
     },
     {
       "mark": {
         "type": "rule",
         "color": "blue",
-        "strokeDash": [6,4],
         "strokeWidth": 2
       },
       "encoding": {
-        "x": { "field": "Today Date", "type": "temporal" }
+        "x": {"value": "datum.Today"}, 
+        "y": {"field": "Epic Title", "type": "ordinal", "sort": "-x"},
+        "y2": {"value": 0}
       }
     }
   ]
