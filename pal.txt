@@ -1,0 +1,61 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "data": { "name": "dataset" },
+  "height": 450,
+  "layer": [
+    {
+      "mark": { "type": "bar", "tooltip": true },
+      "encoding": {
+        "y": { "field": "Title", "type": "nominal", "sort": "-x" },
+        "x": { "field": "Feature Start Date", "type": "temporal" },
+        "x2": { "field": "Forecast Date" },
+        "color": {
+          "field": "Delivery Status",
+          "type": "nominal",
+          "scale": {
+            "domain": ["On Track", "At Risk", "High Risk"],
+            "range": ["#2E8B57", "#FFA500", "#D62728"]
+          }
+        },
+        "size": {
+          "field": "Remaining Stories",
+          "type": "quantitative",
+          "scale": { "range": [10, 30] }
+        }
+      }
+    },
+    {
+      "mark": {
+        "type": "text",
+        "align": "center",
+        "baseline": "middle",
+        "color": "white",
+        "fontWeight": "bold"
+      },
+      "encoding": {
+        "y": { "field": "Title", "type": "nominal" },
+        "x": { "field": "Feature Start Date", "type": "temporal" },
+        "x2": { "field": "Forecast Date" },
+        "text": { "field": "Progress %", "format": ".0%" }
+      }
+    },
+    {
+      "mark": { "type": "rule", "color": "black", "strokeWidth": 2 },
+      "encoding": {
+        "y": { "field": "Title", "type": "nominal" },
+        "x": { "field": "TargetDate", "type": "temporal" }
+      }
+    },
+    {
+      "mark": {
+        "type": "rule",
+        "color": "blue",
+        "strokeDash": [6,4],
+        "strokeWidth": 2
+      },
+      "encoding": {
+        "x": { "field": "Today Date", "type": "temporal" }
+      }
+    }
+  ]
+}
