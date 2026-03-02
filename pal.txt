@@ -1,3 +1,65 @@
+Feature Start Date Col =
+    CALCULATE(
+        MIN(UserStory[InProgressDate]),
+        RELATEDTABLE(UserStory),
+        NOT ISBLANK(UserStory[InProgressDate])
+    )
+
+// Calculated COLUMN — snapshot of forecast at last refresh
+Forecast Date Col =
+    VAR _remaining   =
+        CALCULATE(
+            COUNTROWS(UserStory),
+            RELATEDTABLE(UserStory),
+            UserStory[State] NOT IN {"Closed","Done","Resolved"}
+        )
+    VAR _closed_t1   =
+        CALCULATE(
+            COUNTROWS(UserStory),
+            ALL(UserStory),
+            UserStory[State] IN {"Closed","Done","Resolved"},
+            LEFT(TRIM(UserStory[Title]), 2) = "T1",
+            NOT ISBLANK(UserStory[ClosedDate]),
+            UserStory[ClosedDate] >= TODAY() - 56,
+            UserStory[ClosedDate] <= TODAY()
+        )
+    VAR _throughput  = DIVIDE(_closed_t1, 8, 0)
+    VAR _days        = ROUND(DIVIDE(_remaining, _throughput, 999) * 7, 0)
+    RETURN
+        IF(_throughput > 0, TODAY() + _days, BLANK())
+
+
+Pct Complete Col =
+    VAR _total  = CALCULATE(COUNTROWS(UserStory), RELATEDTABLE(UserStory))
+    VAR _closed = CALCULATE(
+                    COUNTROWS(UserStory),
+                    RELATEDTABLE(UserStory),
+                    UserStory[State] IN {"Closed","Done","Resolved"}
+                  )
+    RETURN DIVIDE(_closed, _total, 0) * 100
+
+
+Status Col =
+    VAR _buf =
+        DATEDIFF([Forecast Date Col], Feature[TargetDate], DAY)
+    VAR _pct  = [Pct Complete Col] / 100
+    VAR _start = [Feature Start Date Col]
+    VAR _elapsed =
+        DIVIDE(
+            DATEDIFF(_start, TODAY(), DAY),
+            DATEDIFF(_start, Feature[TargetDate], DAY),
+            0
+        )
+    RETURN
+        SWITCH(TRUE(),
+            ISBLANK([Forecast Date Col]),  "No Data",
+            _buf < 0,                      "High Risk",
+            _buf < 14,                     "At Risk",
+            (_elapsed - _pct) > 0.20,      "At Risk",
+            _pct >= 1,                     "Complete",
+            "On Track"
+        )
+
 {
   "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
   "description": "Gantt Chart with TargetDate and ForecastDate",
