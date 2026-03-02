@@ -1,3 +1,302 @@
+You can also scroll to the bottom for instructions on how to export this as a downloadable document from Power BI.
+
+📘 Power BI Throughput-Based Forecasting & Gantt Implementation Guide
+1️⃣ Data Model Setup
+Tables Required
+Epic
+
+WorkItemId
+
+Title
+
+Feature
+
+WorkItemId
+
+EpicId
+
+Title
+
+TargetDate
+
+UserStory
+
+WorkItemId
+
+FeatureId
+
+State
+
+ClosedDate
+
+InProgressDate
+
+Title
+
+Relationships
+
+Create the following relationships (Single direction):
+
+Epic[WorkItemId] → Feature[EpicId] (1 to Many)
+
+Feature[WorkItemId] → UserStory[FeatureId] (1 to Many)
+
+Avoid bidirectional filters.
+
+2️⃣ Throughput-Based Forecast Setup
+
+We forecast using:
+
+Remaining Stories ÷ Average Weekly Throughput
+
+Step 1 — Completed T1 Stories (Last 12 Weeks)
+
+Create Measure:
+
+Completed T1 (12w) :=
+CALCULATE(
+    COUNTROWS(UserStory),
+    UserStory[State] = "Closed",
+    LEFT(UserStory[Title],3) = "T1:",
+    UserStory[ClosedDate] >= TODAY() - 84
+)
+Step 2 — Average Weekly Throughput
+Avg Weekly Throughput :=
+DIVIDE(
+    [Completed T1 (12w)],
+    12
+)
+Step 3 — Remaining Stories Per Feature
+Remaining Stories :=
+CALCULATE(
+    COUNTROWS(UserStory),
+    UserStory[State] <> "Closed"
+)
+3️⃣ Required Feature Columns (For Microsoft Gantt)
+
+⚠ Microsoft Gantt requires COLUMNS, not measures.
+
+Create these in the Feature table.
+
+Feature Start Date
+Feature Start Date =
+CALCULATE(
+    MIN(UserStory[InProgressDate]),
+    FILTER(
+        UserStory,
+        UserStory[FeatureId] = Feature[WorkItemId]
+            && NOT(ISBLANK(UserStory[InProgressDate]))
+    )
+)
+Forecast End Date (Throughput-Based)
+Forecast End Date =
+VAR Throughput =
+    DIVIDE(
+        CALCULATE(
+            COUNTROWS(UserStory),
+            UserStory[State] = "Closed",
+            LEFT(UserStory[Title],3) = "T1:",
+            UserStory[ClosedDate] >= TODAY() - 84
+        ),
+        12
+    )
+
+VAR Remaining =
+    CALCULATE(
+        COUNTROWS(UserStory),
+        UserStory[State] <> "Closed"
+    )
+
+VAR WeeksNeeded =
+    DIVIDE(Remaining, Throughput)
+
+RETURN
+TODAY() + (WeeksNeeded * 7)
+RAG Status Column
+RAG Status =
+VAR ForecastDate = Feature[Forecast End Date]
+VAR TargetDate = Feature[TargetDate]
+VAR VarianceDays = DATEDIFF(TargetDate, ForecastDate, DAY)
+
+RETURN
+SWITCH(
+    TRUE(),
+    VarianceDays >= 0, "Green",
+    VarianceDays >= -14, "Amber",
+    "Red"
+)
+4️⃣ Microsoft Gantt Visual Setup
+
+Add Microsoft Gantt visual from AppSource.
+
+Map Fields
+Gantt Field	Value
+Task	Feature[Title]
+Parent	Epic[Title]
+Start Date	Feature[Feature Start Date]
+End Date	Feature[Forecast End Date]
+Milestone	Feature[TargetDate]
+Legend	Feature[RAG Status]
+Colour Configuration
+
+Go to:
+
+Format → Data Colors
+
+Set manually:
+
+Green → #2E7D32
+
+Amber → #ED6C02
+
+Red → #D32F2F
+
+Now bars will automatically change colour based on risk.
+
+5️⃣ Stakeholder Matrix View
+
+Add a Matrix visual.
+
+Rows
+
+Epic[Title]
+
+Feature[Title]
+
+Values
+
+Remaining Stories
+
+Forecast End Date
+
+Target Date
+
+RAG Status
+
+Variance Measure (Optional)
+Variance (Days) :=
+DATEDIFF(
+    SELECTEDVALUE(Feature[TargetDate]),
+    SELECTEDVALUE(Feature[Forecast End Date]),
+    DAY
+)
+
+Apply conditional formatting:
+
+≥ 0 → Green
+
+-1 to -14 → Amber
+
+< -14 → Red
+
+6️⃣ Executive KPI Cards
+
+Create Cards for:
+
+% Green Features
+% Green Features :=
+DIVIDE(
+    CALCULATE(COUNTROWS(Feature), Feature[RAG Status] = "Green"),
+    COUNTROWS(Feature)
+)
+At Risk Count
+At Risk Count :=
+CALCULATE(
+    COUNTROWS(Feature),
+    Feature[RAG Status] <> "Green"
+)
+Average Variance
+Avg Variance :=
+AVERAGEX(
+    Feature,
+    DATEDIFF(
+        Feature[TargetDate],
+        Feature[Forecast End Date],
+        DAY
+    )
+)
+7️⃣ Monte Carlo Forecast Enhancement (Advanced)
+
+Instead of using average throughput:
+
+Capture last 12 weeks of actual weekly throughput
+
+Randomly sample those values 1,000 times
+
+Simulate completion durations
+
+Produce:
+
+P50 date (most likely)
+
+P80 date (80% confidence)
+
+P95 date (safe commitment)
+
+Best implemented using:
+
+Power Query (List.Random sampling), or
+
+Python/R script inside Power BI
+
+Monte Carlo allows you to tell stakeholders:
+
+“There is 80% confidence this Feature completes before X date.”
+
+This is significantly more reliable than simple averages.
+
+8️⃣ How to Download This as a Document
+Option 1 — Export from Power BI Report
+
+Publish report to Power BI Service
+
+File → Export → PDF
+
+Download and share
+
+Option 2 — Create Formal Documentation File
+
+Copy this guide into Microsoft Word
+
+Save as:
+
+PDF for stakeholders
+
+DOCX for internal documentation
+
+Option 3 — Create a Power BI Documentation Page
+
+Inside your PBIX:
+
+Add a new page called “Methodology”
+
+Insert text boxes
+
+Paste the formulas and logic
+
+Export report as PDF
+
+This ensures governance and auditability.
+
+✅ Final Deliverable Structure
+
+Page 1 — Executive Summary
+Page 2 — Gantt (RAG coloured)
+Page 3 — Matrix + Variance
+Page 4 — Throughput Trend
+Page 5 — Monte Carlo Confidence
+
+If you would like, I can next generate:
+
+A properly formatted PDF-ready version
+
+A DOCX documentation file
+
+A Power BI template structure outline
+
+Or a Monte Carlo simulation implementation guide (step-by-step in Power Query)
+==================================================
+
 ExtractedValue =
 VAR InputText = 'Table'[YourTextColumn]
 VAR INC_Pos = SEARCH("INC", InputText, 1, 0)
