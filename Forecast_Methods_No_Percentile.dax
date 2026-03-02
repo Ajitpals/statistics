@@ -1,0 +1,350 @@
+// ═══════════════════════════════════════════════════════════════
+//  FORECAST DATE METHODS — NO PERCENTILE
+//  5 approaches, all in pure DAX, with comparison notes
+//
+//  Tables: Epic, Feature, UserStory
+//  Key fields used:
+//    UserStory[ClosedDate], UserStory[InProgressDate]
+//    UserStory[State], UserStory[Title]
+//    Feature[TargetDate], Feature[WorkItemId]
+// ═══════════════════════════════════════════════════════════════
+
+
+// ───────────────────────────────────────────────────────────────
+//  SHARED BUILDING BLOCKS
+// ───────────────────────────────────────────────────────────────
+
+Remaining Stories =
+    CALCULATE(
+        COUNTROWS(UserStory),
+        UserStory[State] NOT IN {"Closed","Done","Resolved"}
+    )
+
+Closed Stories =
+    CALCULATE(
+        COUNTROWS(UserStory),
+        UserStory[State] IN {"Closed","Done","Resolved"}
+    )
+
+Feature Start Date =
+    CALCULATE(
+        MIN(UserStory[InProgressDate]),
+        NOT ISBLANK(UserStory[InProgressDate])
+    )
+
+
+// ═══════════════════════════════════════════════════════════════
+//  METHOD 1 — SIMPLE AVERAGE THROUGHPUT
+//  "How many T1 stories did we close per week on average
+//   over the last 6 months?"
+//
+//  Formula:
+//    Weekly Avg = Total T1 Closed (26 weeks) ÷ 26
+//    Forecast   = TODAY + (Remaining ÷ Weekly Avg) × 7
+//
+//  Best for:  Stable, predictable teams with consistent output.
+//  Weakness:  Drags upward by exceptional weeks; pulled down by
+//             holiday slumps. Outliers distort the average.
+// ═══════════════════════════════════════════════════════════════
+
+M1 Avg Weekly Throughput =
+    VAR _total_closed =
+        CALCULATE(
+            COUNTROWS(UserStory),
+            ALL(Feature),              // ← team-wide, not epic-scoped
+            UserStory[State] IN {"Closed","Done","Resolved"},
+            LEFT(TRIM(UserStory[Title]), 2) = "T1",
+            NOT ISBLANK(UserStory[ClosedDate]),
+            UserStory[ClosedDate] >= TODAY() - 182,
+            UserStory[ClosedDate] <= TODAY()
+        )
+    // Divide by actual weeks elapsed (not fixed 26) for accuracy
+    VAR _first_close =
+        CALCULATE(
+            MIN(UserStory[ClosedDate]),
+            ALL(Feature),
+            UserStory[State] IN {"Closed","Done","Resolved"},
+            LEFT(TRIM(UserStory[Title]), 2) = "T1",
+            UserStory[ClosedDate] >= TODAY() - 182
+        )
+    VAR _weeks_elapsed =
+        DIVIDE(DATEDIFF(_first_close, TODAY(), DAY), 7, 26)
+    RETURN
+        DIVIDE(_total_closed, _weeks_elapsed, 0)
+
+M1 Forecast Date =
+    VAR _throughput  = [M1 Avg Weekly Throughput]
+    VAR _remaining   = [Remaining Stories]
+    VAR _days        = ROUND(DIVIDE(_remaining, _throughput, 999) * 7, 0)
+    RETURN
+        IF(_throughput > 0, TODAY() + _days, BLANK())
+
+
+// ═══════════════════════════════════════════════════════════════
+//  METHOD 2 — ROLLING AVERAGE (Last N Weeks)
+//  "Use only the most recent weeks — ignore old history."
+//
+//  Formula:
+//    Look back N weeks (e.g. 4 or 8).
+//    Weekly Avg = Stories closed in that window ÷ N
+//    Forecast   = TODAY + (Remaining ÷ Weekly Avg) × 7
+//
+//  Best for:  Teams that recently changed size, process, or
+//             tooling. Recent data is more predictive.
+//  Weakness:  A single bad or exceptional week has big impact
+//             when N is small (e.g. N=4).
+//  Tune:      N=4 (reactive) vs N=8 (balanced) vs N=12 (stable).
+// ═══════════════════════════════════════════════════════════════
+
+M2 Rolling Weeks = 8     // ← change this to tune the window
+
+M2 Rolling Avg Throughput =
+    VAR _n_weeks     = [M2 Rolling Weeks]
+    VAR _window_days = _n_weeks * 7
+    VAR _total =
+        CALCULATE(
+            COUNTROWS(UserStory),
+            ALL(Feature),
+            UserStory[State] IN {"Closed","Done","Resolved"},
+            LEFT(TRIM(UserStory[Title]), 2) = "T1",
+            NOT ISBLANK(UserStory[ClosedDate]),
+            UserStory[ClosedDate] >= TODAY() - _window_days,
+            UserStory[ClosedDate] <= TODAY()
+        )
+    RETURN DIVIDE(_total, _n_weeks, 0)
+
+M2 Forecast Date =
+    VAR _throughput  = [M2 Rolling Avg Throughput]
+    VAR _remaining   = [Remaining Stories]
+    VAR _days        = ROUND(DIVIDE(_remaining, _throughput, 999) * 7, 0)
+    RETURN
+        IF(_throughput > 0, TODAY() + _days, BLANK())
+
+
+// ═══════════════════════════════════════════════════════════════
+//  METHOD 3 — WEIGHTED MOVING AVERAGE (WMA)
+//  "Recent weeks count more than older weeks."
+//
+//  Formula (example: 4-week window):
+//    Week -1 weight: 4,  Week -2: 3,  Week -3: 2,  Week -4: 1
+//    WMA = (w1×c1 + w2×c2 + w3×c3 + w4×c4) ÷ (4+3+2+1)
+//    Forecast = TODAY + (Remaining ÷ WMA) × 7
+//
+//  Best for:  Teams with upward/downward velocity trends.
+//             Captures momentum — ramping up or winding down.
+//  Weakness:  More complex DAX; sensitive to very recent spikes.
+//  Note:      Uses a fixed 4-week lookback for tractable DAX.
+// ═══════════════════════════════════════════════════════════════
+
+M3 WMA Throughput =
+    // Week counts: w1 = last 7 days, w2 = 8-14 days ago, etc.
+    VAR _w1 =
+        CALCULATE(
+            COUNTROWS(UserStory), ALL(Feature),
+            UserStory[State] IN {"Closed","Done","Resolved"},
+            LEFT(TRIM(UserStory[Title]), 2) = "T1",
+            UserStory[ClosedDate] >= TODAY() - 7,
+            UserStory[ClosedDate] <= TODAY()
+        )
+    VAR _w2 =
+        CALCULATE(
+            COUNTROWS(UserStory), ALL(Feature),
+            UserStory[State] IN {"Closed","Done","Resolved"},
+            LEFT(TRIM(UserStory[Title]), 2) = "T1",
+            UserStory[ClosedDate] >= TODAY() - 14,
+            UserStory[ClosedDate] < TODAY() - 7
+        )
+    VAR _w3 =
+        CALCULATE(
+            COUNTROWS(UserStory), ALL(Feature),
+            UserStory[State] IN {"Closed","Done","Resolved"},
+            LEFT(TRIM(UserStory[Title]), 2) = "T1",
+            UserStory[ClosedDate] >= TODAY() - 21,
+            UserStory[ClosedDate] < TODAY() - 14
+        )
+    VAR _w4 =
+        CALCULATE(
+            COUNTROWS(UserStory), ALL(Feature),
+            UserStory[State] IN {"Closed","Done","Resolved"},
+            LEFT(TRIM(UserStory[Title]), 2) = "T1",
+            UserStory[ClosedDate] >= TODAY() - 28,
+            UserStory[ClosedDate] < TODAY() - 21
+        )
+    // Weights: most recent = 4, oldest = 1
+    RETURN
+        DIVIDE(
+            (_w1 * 4) + (_w2 * 3) + (_w3 * 2) + (_w4 * 1),
+            4 + 3 + 2 + 1,
+            0
+        )
+
+M3 Forecast Date =
+    VAR _throughput  = [M3 WMA Throughput]
+    VAR _remaining   = [Remaining Stories]
+    VAR _days        = ROUND(DIVIDE(_remaining, _throughput, 999) * 7, 0)
+    RETURN
+        IF(_throughput > 0, TODAY() + _days, BLANK())
+
+
+// ═══════════════════════════════════════════════════════════════
+//  METHOD 4 — BURN-DOWN PROJECTION
+//  "At the current burn rate, when does the line hit zero?"
+//
+//  Formula:
+//    Rate = Stories Closed ÷ Days Active (since feature started)
+//    Forecast = TODAY + (Remaining ÷ Daily Rate)
+//
+//  This is purely feature-scoped — it uses THIS feature's
+//  own burn rate, not team-wide throughput. Highly contextual.
+//
+//  Best for:  Features already well underway (>30% done).
+//             Self-correcting: if the team speeds up on this
+//             feature, the forecast automatically improves.
+//  Weakness:  Misleading when feature just started (< 3 stories
+//             closed) — early rate is unstable.
+// ═══════════════════════════════════════════════════════════════
+
+M4 Daily Burn Rate =
+    VAR _start       = [Feature Start Date]
+    VAR _days_active = DATEDIFF(_start, TODAY(), DAY)
+    VAR _closed      = [Closed Stories]
+    RETURN
+        DIVIDE(_closed, _days_active, 0)    // stories per day
+
+M4 Forecast Date =
+    VAR _rate        = [M4 Daily Burn Rate]
+    VAR _remaining   = [Remaining Stories]
+    VAR _days        = ROUND(DIVIDE(_remaining, _rate, 999), 0)
+    VAR _pct         = [Feature Pct Complete] / 100
+    RETURN
+        // Guard: only reliable once >20% done
+        IF(
+            _rate > 0 && _pct >= 0.20,
+            TODAY() + _days,
+            BLANK()
+        )
+
+// Linear burn-down projected end date (for xViz reference line)
+M4 Projected End Date =
+    VAR _start       = [Feature Start Date]
+    VAR _closed      = [Closed Stories]
+    VAR _total       = [Total Stories]
+    VAR _days_active = DATEDIFF(_start, TODAY(), DAY)
+    // Slope: days per story at current rate
+    VAR _days_per_story = DIVIDE(_days_active, _closed, 999)
+    // Project from feature start: start + (total × days_per_story)
+    RETURN
+        IF(
+            _closed > 0,
+            _start + ROUND(_total * _days_per_story, 0),
+            BLANK()
+        )
+
+
+// ═══════════════════════════════════════════════════════════════
+//  METHOD 5 — TIME-ELAPSED PROPORTIONAL PROJECTION
+//  "If we're X% done and Y% of time has passed, extrapolate."
+//
+//  Formula:
+//    If 40% done in 30 days → full completion takes 30 ÷ 0.40 = 75 days
+//    Forecast = Feature Start + 75 days
+//    (or equivalently: TODAY + remaining_time)
+//
+//  Best for:  Features with a fixed planned scope and a regular
+//             work pattern. Simple and intuitive for stakeholders.
+//  Weakness:  Assumes the remaining stories take the same average
+//             time as the completed ones. Not valid if easy stories
+//             were done first and hard ones remain.
+//  Note:      Does NOT use throughput data at all. Purely geometric.
+// ═══════════════════════════════════════════════════════════════
+
+M5 Forecast Date =
+    VAR _start       = [Feature Start Date]
+    VAR _pct_done    = DIVIDE([Closed Stories], [Total Stories], 0)
+    VAR _days_active = DATEDIFF(_start, TODAY(), DAY)
+    // If 40% done in N days → total duration = N ÷ 0.40
+    VAR _total_days  = ROUND(DIVIDE(_days_active, _pct_done, 999), 0)
+    VAR _forecast    = _start + _total_days
+    RETURN
+        IF(
+            _pct_done > 0.10,   // need at least 10% done to project
+            _forecast,
+            BLANK()
+        )
+
+// Sanity check: how far off from target?
+M5 Buffer Days =
+    DATEDIFF([M5 Forecast Date], MAX(Feature[TargetDate]), DAY)
+
+
+// ═══════════════════════════════════════════════════════════════
+//  BONUS — COMBINED CONSENSUS FORECAST
+//  Average of M1 + M2 + M4 where available.
+//  Smooths out the noise from any single method.
+//  Good as a "headline" forecast when you're unsure which
+//  method fits your team best.
+// ═══════════════════════════════════════════════════════════════
+
+Consensus Forecast Date =
+    VAR _m1 = [M1 Forecast Date]
+    VAR _m2 = [M2 Forecast Date]
+    VAR _m4 = [M4 Forecast Date]
+
+    VAR _count =
+        (IF(NOT ISBLANK(_m1), 1, 0)) +
+        (IF(NOT ISBLANK(_m2), 1, 0)) +
+        (IF(NOT ISBLANK(_m4), 1, 0))
+
+    VAR _sum =
+        (IF(NOT ISBLANK(_m1), DATEVALUE(FORMAT(_m1,"YYYY-MM-DD")), 0)) +
+        (IF(NOT ISBLANK(_m2), DATEVALUE(FORMAT(_m2,"YYYY-MM-DD")), 0)) +
+        (IF(NOT ISBLANK(_m4), DATEVALUE(FORMAT(_m4,"YYYY-MM-DD")), 0))
+
+    RETURN
+        IF(_count > 0, DATE(1899,12,30) + ROUND(_sum / _count, 0), BLANK())
+
+
+// ═══════════════════════════════════════════════════════════════
+//  STATUS USING A CHOSEN METHOD
+//  Swap the forecast method here by changing one variable.
+//  Using M1 (Simple Average) as the default.
+// ═══════════════════════════════════════════════════════════════
+
+Active Forecast Date =
+    // ← Change to [M2 Forecast Date], [M3], [M4], [M5],
+    //   or [Consensus Forecast Date] to switch methods
+    [M1 Forecast Date]
+
+Forecast Buffer Days =
+    DATEDIFF([Active Forecast Date], MAX(Feature[TargetDate]), DAY)
+
+Feature Status =
+    VAR _buf = [Forecast Buffer Days]
+    RETURN
+        SWITCH(TRUE(),
+            ISBLANK(_buf),   "No Data",
+            _buf < 0,        "High Risk",
+            _buf < 14,       "At Risk",
+            "On Track"
+        )
+
+
+// ═══════════════════════════════════════════════════════════════
+//  COMPARISON TABLE (use as a Matrix visual for tuning)
+//  Rows:   Feature[Title]
+//  Values: All five forecast dates + buffer per method
+// ═══════════════════════════════════════════════════════════════
+
+/*
+Recommended matrix columns:
+
+Feature           │ M1 Simple│ M2 Rolling│ M3 WMA │ M4 Burndown│ M5 Elapsed│ Target
+──────────────────┼──────────┼───────────┼────────┼────────────┼───────────┼───────
+T1: Auth & SSO    │ 08 Mar   │  10 Mar   │ 07 Mar │ 09 Mar     │ 11 Mar    │ 12 Mar
+T1: API Gateway   │ 28 Mar   │  25 Mar   │ 31 Mar │ 22 Mar     │ 30 Mar    │ 31 Mar
+Reporting Eng v2  │ 18 Apr   │  20 Apr   │ 16 Apr │ (< 20%)    │ 22 Apr    │ 15 Apr
+...
+
+This table helps you pick which method feels right for your team
+before committing to it on the stakeholder Gantt.
+*/
